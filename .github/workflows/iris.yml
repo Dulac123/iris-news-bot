@@ -1,0 +1,62 @@
+name: Iris
+
+# Posao radi ~5h40min u petlji (Telegram + skeniranje + pregledi), pa sam sebe ponovo pokrene.
+# Cron na 6h je samo rezerva, ako se lanac ikad prekine.
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # da sačuva šifrovano stanje
+  actions: write    # da može da pokrene sledeći ciklus
+
+concurrency:
+  group: iris
+  cancel-in-progress: false
+
+jobs:
+  iris:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Učitaj stanje
+        env:
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+        run: python3 -m iris.state unpack
+
+      - name: Pokreni Iris (petlja)
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          KORISNIK_IME: ${{ secrets.KORISNIK_IME }}
+        run: python3 -u main.py --sati 5.6
+
+      - name: Sačuvaj stanje
+        if: always()
+        env:
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+        run: |
+          python3 -m iris.state pack
+          git config user.name "iris-bot"
+          git config user.email "iris-bot@users.noreply.github.com"
+          git add -f iris.db.enc
+          git diff --cached --quiet || (git commit -m "stanje" && git pull -q --rebase && git push)
+
+      - name: Pokreni sledeći ciklus
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run iris.yml --repo "$GITHUB_REPOSITORY"

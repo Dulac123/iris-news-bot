@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -29,8 +30,12 @@ def sistem() -> str:
     return t
 
 
+_hladjenje: dict[str, float] = {}   # model -> do kad ga ne diramo (429)
+
+
 async def _pozovi(system: str, messages: list[dict], max_tokens: int = 1500) -> str:
-    """Gemini REST. Probamo modele redom; 429/5xx ponovimo, ostalo -> sledeći model."""
+    """Gemini REST. Model koji vrati 429 se "hladi" (dnevna kvota: sat, minutna: 75s) pa ga preskačemo;
+    ako su svi na hlađenju, čekamo najbliži da se oslobodi."""
     body = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [
@@ -42,25 +47,40 @@ async def _pozovi(system: str, messages: list[dict], max_tokens: int = 1500) -> 
     }
     poslednja = ""
     async with httpx.AsyncClient(timeout=90) as http:
-        for model in config.GEMINI_MODELI:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-            for pokusaj in range(2):
+        for krug in range(3):
+            modeli = [m for m in config.GEMINI_MODELI if _hladjenje.get(m, 0) <= time.time()]
+            if not modeli:  # svi se hlade: sačekaj onaj koji se prvi oslobađa (najviše 45 s)
+                cekaj = min(_hladjenje[m] for m in config.GEMINI_MODELI) - time.time()
+                if cekaj > 45:
+                    break
+                await asyncio.sleep(max(cekaj, 1))
+                continue
+            for model in modeli:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 try:
                     r = await http.post(url, json=body, headers={"x-goog-api-key": config.GEMINI_API_KEY})
-                    if r.status_code == 200:
+                except Exception as e:
+                    poslednja = f"{model}: {type(e).__name__}"
+                    log.warning("Gemini problem (%s)", poslednja)
+                    continue
+                if r.status_code == 200:
+                    try:
                         parts = r.json()["candidates"][0]["content"]["parts"]
                         tekst = "".join(p.get("text", "") for p in parts if not p.get("thought")).strip()
-                        if tekst:
-                            return tekst
-                        poslednja = f"{model}: prazan odgovor"
-                    else:
-                        poslednja = f"{model}: HTTP {r.status_code}"
-                        if r.status_code not in (429, 500, 503):
-                            break
-                except Exception as e:
-                    poslednja = f"{model}: {type(e).__name__}: {e}"
-                log.warning("Gemini problem (%s), pokušaj %d", poslednja, pokusaj + 1)
-                await asyncio.sleep(4)
+                    except Exception:
+                        tekst = ""
+                    if tekst:
+                        return tekst
+                    poslednja = f"{model}: prazan odgovor"
+                else:
+                    poslednja = f"{model}: HTTP {r.status_code}"
+                    if r.status_code == 429:
+                        dnevna = "perday" in r.text.lower().replace(" ", "").replace("_", "")
+                        _hladjenje[model] = time.time() + (3600 if dnevna else 75)
+                    elif r.status_code in (500, 503):
+                        _hladjenje[model] = time.time() + 20
+                log.warning("Gemini problem (%s)", poslednja)
+            await asyncio.sleep(3)
     raise RuntimeError(f"Nijedan Gemini model nije odgovorio ({poslednja})")
 
 

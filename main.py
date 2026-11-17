@@ -76,8 +76,8 @@ async def poruka(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     memory.add_message("user", update.message.text)
     try:
         odgovor = await brain.odgovori(memory.today_messages(), memory.today_stories(config.MAX_CONTEXT_STORIES))
-    except Exception:
-        log.exception("Razgovor pao")
+    except Exception as e:
+        log.error("Razgovor pao: %s", e)
         await update.message.reply_text("Nešto je pukao na mojoj strani. Pokušaj ponovo za minut.")
         return
     memory.add_message("assistant", odgovor)

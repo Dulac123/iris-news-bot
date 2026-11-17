@@ -22,7 +22,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODELI = [m.strip() for m in (os.environ.get("GEMINI_MODELI") or
-                 "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash").split(",") if m.strip()]
+                 "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash,gemini-flash-latest").split(",") if m.strip()]
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
 APIFY_ACTOR = os.environ.get("APIFY_ACTOR", "apidojo/tweet-scraper")

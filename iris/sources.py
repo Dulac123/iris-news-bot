@@ -75,6 +75,23 @@ async def tavily_vesti(max_po_temi: int = 6) -> list[dict]:
     return out
 
 
+async def pretrazi(upit: str, max_results: int = 5) -> list[dict]:
+    """Pretraga na zahtev iz razgovora. Ako pukne - prazna lista, razgovor ide dalje bez nje."""
+    from tavily import AsyncTavilyClient
+
+    try:
+        r = await AsyncTavilyClient(api_key=config.TAVILY_API_KEY).search(
+            query=upit, topic="news", time_range="week", max_results=max_results, search_depth="basic")
+        if not r.get("results"):
+            r = await AsyncTavilyClient(api_key=config.TAVILY_API_KEY).search(
+                query=upit, max_results=max_results, search_depth="basic")
+    except Exception as e:
+        log.warning("Tavily pretraga '%s' pala: %s", upit, e)
+        return []
+    return [{"tema": "pretraga", "naslov": (x.get("title") or "").strip(), "url": x.get("url", ""),
+             "tekst": (x.get("content") or "").strip()} for x in r.get("results", []) if x.get("url")]
+
+
 async def x_viralno(max_items: int = 30) -> list[dict]:
     """Viralni tvitovi preko Apify aktora. Ako nema tokena ili pukne - prazna lista, nije kritično."""
     if not config.APIFY_TOKEN:

@@ -138,8 +138,13 @@ async def izaberi_price(kandidati: list[dict], koliko: int, poslato: list[str]) 
 
 # ------------------------------------------------------------------- tekstovi
 def _blok_prica(price: list[dict], limit: int) -> str:
+    # priče iz bazi imaju ključeve title/topic/text, sveže iz izvora naslov/tema/tekst - podržavamo oba
+    def g(p: dict, a: str, b: str) -> str:
+        return str(p.get(a) or p.get(b) or "")
+
     return "\n\n".join(
-        f"=== PRIČA {i} [{p['tema']}] ===\nNaslov: {p['naslov']}\nLink: {p['url']}\nTekst:\n{p['tekst'][:limit]}"
+        f"=== PRIČA {i} [{g(p, 'tema', 'topic')}] ===\nNaslov: {g(p, 'naslov', 'title')}\nLink: {p.get('url', '')}\n"
+        f"Tekst:\n{g(p, 'tekst', 'text')[:limit]}"
         for i, p in enumerate(price, 1)
     )
 
@@ -210,8 +215,33 @@ def _spoji_istoriju(istorija: list[dict]) -> list[dict]:
     return out
 
 
+async def _upit_za_pretragu(istorija: list[dict]) -> str:
+    """Pita Gemini treba li pretraga weba za poslednje pitanje; vraća upit ili "" (ne treba / nešto puklo)."""
+    razgovor = "\n".join(f"{'Ja' if m['role'] == 'user' else 'Iris'}: {m['content'][:300]}" for m in istorija[-4:])
+    prompt = (
+        "Ispod je kraj razgovora. Da li za dobar odgovor na MOJU poslednju poruku treba tražiti sveže informacije na internetu "
+        "(vest, događaj, cena, činjenica koje nemaš)? Za običan razgovor, šalu ili komentar ne treba.\n"
+        'Vrati SAMO JSON: {"trazi": "kratak upit na engleskom"} ili {"trazi": ""}.\n\n' + razgovor
+    )
+    try:
+        out = await _pozovi("Odgovaraš samo validnim JSON-om.", [{"role": "user", "content": prompt}], 100)
+        return str(_json(out).get("trazi") or "").strip()
+    except Exception as e:
+        log.warning("Odluka o pretrazi pala (%s)", e)
+        return ""
+
+
 async def odgovori(istorija: list[dict], price: list[dict]) -> str:
     system = sistem()
+    upit = await _upit_za_pretragu(istorija)
+    if upit:
+        from . import sources
+        nadjeno = await sources.pretrazi(upit)
+        if nadjeno:
+            system += (
+                f"\n\nPRETRAGA NA INTERNETU za \"{upit}\" (koristi ovo za odgovor, navedi izvor/link; "
+                "ako rezultati ne odgovaraju pitanju, reci to):\n\n" + _blok_prica(nadjeno, 1500)
+            )
     if price:
         system += (
             "\n\nDANAS SI PRATILA OVE PRIČE (koristi ih kad te pitam za detalje; ako pitanje izlazi iz ovoga, "

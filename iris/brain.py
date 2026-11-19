@@ -99,8 +99,9 @@ async def oceni_hitno(nove: list[dict], poslato: list[str]) -> list[dict]:
         "Ispod su sveže vesti. Oceni vaznost svake od 1 do 10 po tome koliko odmah može da pomeri berzu, kripto, "
         "geopolitiku ili tehnološki sektor. 1-5 je rutina (većina). 8+ je velika/breaking stvar: rat ili velika eskalacija, "
         "krah ili skok tržišta, odluka centralne banke, velika regulativa, veliki hak/bankrot, veliko tehnološko otkriće. "
-        "Ne računaj iste događaje koje sam već javila.\n"
-        f"Već javljeno danas: {json.dumps(poslato[-15:], ensure_ascii=False)}\n\n"
+        "Ne računaj iste događaje koje sam već javila (ni ako ih drugi izvor opisuje drugim rečima), i ne vraćaj dve "
+        "stavke o istom događaju - uzmi samo najvažniju.\n"
+        f"Već javljeno danas: {json.dumps(poslato[:30], ensure_ascii=False)}\n\n"
         f'Vrati SAMO JSON sa onima čija je vaznost >= {config.ALERT_MIN}: {{"hitno":[{{"id":indeks,"v":ocena}}]}} '
         '(prazna lista ako nema ničeg).\n\n' + _lista(nove)
     )
@@ -122,9 +123,11 @@ async def izaberi_price(kandidati: list[dict], koliko: int, poslato: list[str]) 
     prompt = (
         f"Izaberi do {koliko} NAJBITNIJIH tema na svim frontovima (geopolitika/svet, berza i ekonomija, kripto, tehnologija/AI), "
         "one koje mogu da utiču na tržišta ili su zaista velike i viralne. Pokrij različite fronte i ne biraj dve stavke o istom "
-        "događaju. NE biraj ništa što je suštinski isti događaj kao nešto što sam već javila. Ako se ništa zaista "
+        "događaju. NE biraj ništa što je suštinski isti događaj, putovanje, izjava ili tema kao nešto što sam već javila, "
+        "čak i ako je drugi izvor ili drugi naslov; izuzetak je samo ako postoji stvarno NOV ishod (npr. potpisan sporazum, "
+        "pad tržišta). Isti događaj iz više izvora je JEDNA priča. Ako se ništa zaista "
         "značajno ne dešava, vrati manje stavki ili praznu listu - ne puni kvotu na silu.\n"
-        f"Već javljeno danas: {json.dumps(poslato[-20:], ensure_ascii=False)}\n"
+        f"Već javljeno danas: {json.dumps(poslato[:40], ensure_ascii=False)}\n"
         'Odgovori SAMO JSON-om: {"izbor":[indeksi]}\n\n' + _lista(kandidati)
     )
     out = await _pozovi("Ti si urednik vesti. Odgovaraš samo validnim JSON-om.", [{"role": "user", "content": prompt}], 300)

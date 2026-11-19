@@ -35,8 +35,9 @@ DIGEST_MIN = _int("DIGEST_MIN", 90)        # na koliko minuta šalje pregled sve
 MORNING_HOUR = _int("MORNING_HOUR", 7)     # jutarnji pregled
 DIGEST_HOUR = _int("DIGEST_HOUR", 22)      # večernja kapitulacija
 ACTIVE_TO = _int("ACTIVE_TO", 23)          # posle ovog sata nema ni hitnih javljanja
-STORIES_PER_CYCLE = _int("STORIES_PER_CYCLE", 5)
+STORIES_PER_CYCLE = _int("STORIES_PER_CYCLE", 4)
 ALERT_MIN = _int("ALERT_MIN", 8)           # vaznost 1-10 od koje vest ide kao "hitno"
+ALERT_PAUSE_MIN = _int("ALERT_PAUSE_MIN", 90)   # hitno javljanje najčešće na ovoliko minuta
 QUIET_PAUSE_MIN = _int("QUIET_PAUSE_MIN", 180)  # najčešće na koliko min sme da javi "ništa se ne dešava"
 
 DB_PATH = Path(os.environ.get("DB_PATH", BASE / "iris.db"))

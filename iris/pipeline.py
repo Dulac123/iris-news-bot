@@ -73,18 +73,23 @@ async def skeniraj(app: Application):
             if i["url"] not in skenirano and i["url"] not in poslato][:50]
     if not nove:
         return
-    hitno = await brain.oceni_hitno(nove, memory.today_titles())
+    if time.time() - memory.meta_ts("hitno_ts") < config.ALERT_PAUSE_MIN * 60:
+        memory.mark_scanned([i["url"] for i in nove])
+        log.info("Skeniranje: %d novih, ali hitno sam već javila pre kratko - preskačem.", len(nove))
+        return
+    hitno = await brain.oceni_hitno(nove, memory.recent_titles())
     memory.mark_scanned([i["url"] for i in nove])  # tek posle uspešne ocene
     log.info("Skeniranje: %d novih, hitnih %d", len(nove), len(hitno))
     if hitno:
-        await _objavi(app, hitno[:2], "hitno")
+        await _objavi(app, hitno[:1], "hitno")
+        memory.set_meta("hitno_ts", time.time())
 
 
 async def pregled(app: Application, force: bool = False):
     """Svakih ~90 min: do 5 najbitnijih tema sa svih frontova, ili kratka opaska ako je mirno."""
     memory.set_meta("pregled_ts", time.time())
     kandidati = await _kandidati(max_age_h=6)
-    izbor = await brain.izaberi_price(kandidati, config.STORIES_PER_CYCLE, memory.today_titles())
+    izbor = await brain.izaberi_price(kandidati, config.STORIES_PER_CYCLE, memory.recent_titles())
     if izbor:
         await _objavi(app, izbor, "pregled")
     else:
@@ -94,7 +99,7 @@ async def pregled(app: Application, force: bool = False):
 async def jutro(app: Application):
     memory.set_meta("pregled_ts", time.time())
     kandidati = await _kandidati(max_age_h=12)
-    izbor = await brain.izaberi_price(kandidati, config.STORIES_PER_CYCLE, memory.today_titles())
+    izbor = await brain.izaberi_price(kandidati, config.STORIES_PER_CYCLE, memory.recent_titles())
     if izbor:
         await _objavi(app, izbor, "jutro")
     else:

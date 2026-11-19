@@ -111,6 +111,14 @@ def today_titles() -> list[str]:
     return [s["title"] for s in today_stories() if s.get("title")]
 
 
+def recent_titles(hours: float = 36, limit: int = 40) -> list[str]:
+    """Naslovi već poslatih priča, NAJNOVIJI PRVO, preko ponoći (da jutro ne ponovi ono što je javljeno uveče)."""
+    with _db() as c:
+        rows = c.execute("SELECT title FROM stories WHERE ts > ? AND title != '' ORDER BY id DESC LIMIT ?",
+                         (time.time() - hours * 3600, limit)).fetchall()
+    return [r["title"] for r in rows]
+
+
 # ---- skenirani linkovi (hitne vesti) --------------------------------------
 def scanned_urls() -> set[str]:
     with _db() as c:
